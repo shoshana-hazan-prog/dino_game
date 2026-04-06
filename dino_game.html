@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Dino Runner</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html, body { width:100%; height:100%; background:#f5f5f5; font-family:"Courier New",monospace; }
+    #wrap { display:flex; flex-direction:column; align-items:center; padding:16px 10px 10px; width:100%; }
+    #scores { display:flex; justify-content:space-between; width:100%; max-width:700px; font-size:14px; font-weight:700; letter-spacing:2px; color:#555; margin-bottom:8px; }
+    #hi { color:#c0392b; }
+    #canvas { display:block; width:100%; max-width:700px; border:1px solid #ddd; border-radius:8px; background:#fff; touch-action:none; }
+    #btns { display:none; gap:12px; margin-top:14px; width:100%; max-width:700px; }
+    .btn { flex:1; padding:18px 0; border:1.5px solid #ddd; border-radius:14px; background:#fff; font-family:"Courier New",monospace; font-size:15px; font-weight:700; color:#444; cursor:pointer; text-align:center; }
+    .btn:active { background:#eee; }
+    #bj { border-color:#c0392b55; color:#c0392b; }
+    #hint { margin-top:10px; font-size:12px; color:#aaa; letter-spacing:1px; }
+    @media (pointer:coarse) { #btns{display:flex;} #hint{display:none;} }
+    @media (prefers-color-scheme:dark) {
+      html,body{background:#1a1a1a;} #scores{color:#aaa;} #canvas{background:#111;border-color:#333;}
+      .btn{background:#222;border-color:#444;color:#bbb;} .btn:active{background:#333;}
+      #bj{border-color:#c0392b88;color:#e74c3c;} #hint{color:#555;}
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="scores">
+      <span>HI <span id="hi">00000</span></span>
+      <span id="sc">00000</span>
+    </div>
+    <canvas id="canvas"></canvas>
+    <div id="btns">
+      <button class="btn" id="bd" ontouchstart="startDuck(event)" ontouchend="endDuck(event)" onmousedown="startDuck(event)" onmouseup="endDuck(event)">▼ התכופף</button>
+      <button class="btn" id="bj" ontouchstart="doJump(event)" onmousedown="doJump(event)">▲ קפוץ</button>
+    </div>
+    <p id="hint">SPACE / ↑ לקפיצה &nbsp;|&nbsp; S / ↓ להתכופף</p>
+  </div>
+  <script>
+    var canvas=document.getElementById("canvas"),ctx=canvas.getContext("2d"),CW,CH,GY;
+    function resize(){CW=Math.min(700,document.getElementById("wrap").clientWidth);CH=Math.round(CW*180/700);canvas.width=CW;canvas.height=CH;GY=CH-Math.round(CH*30/180);if(!dino.jumping)dino.y=GY;}
+    var isDark=window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches;
+    var C={ground:isDark?"#555":"#ccc",dino:"#c0392b",dark:"#7b1a11",eye:isDark?"#222":"#fff",obstacle:isDark?"#eee":"#333",cloud:isDark?"#333":"#e8e8e8",text:isDark?"#999":"#666"};
+    var hiScore=0;try{hiScore=parseInt(localStorage.getItem("dinoHi")||"0")||0;}catch(e){}
+    document.getElementById("hi").textContent=pad(hiScore);
+    var state="idle",score=0,speed=5,frame=0,obstacles=[],clouds=[],gOff=0;
+    var dino={x:0,y:0,vy:0,jumping:false,ducking:false,leg:0};
+    function init(){resize();dino.x=Math.round(CW*80/700);dino.y=GY;spawnCloud();spawnCloud();clouds[0].x=CW*0.3;clouds[1].x=CW*0.65;loop();}
+    function resetGame(){score=0;speed=5;frame=0;obstacles=[];clouds=[];gOff=0;dino.y=GY;dino.vy=0;dino.jumping=false;dino.ducking=false;dino.leg=0;spawnCloud();spawnCloud();clouds[0].x=CW*0.3;clouds[1].x=CW*0.65;state="playing";}
+    function jump(){if(state!=="playing"){resetGame();return;}if(!dino.jumping&&!dino.ducking){dino.vy=-14;dino.jumping=true;}}
+    function duck(on){if(state!=="playing"){if(on)resetGame();return;}dino.ducking=on;if(on&&dino.jumping)dino.vy=Math.max(dino.vy,4);}
+    function doJump(e){e.preventDefault();jump();}function startDuck(e){e.preventDefault();duck(true);}function endDuck(e){e.preventDefault();duck(false);}
+    document.addEventListener("keydown",function(e){if(e.code==="Space"||e.code==="ArrowUp"){e.preventDefault();jump();}if(e.code==="ArrowDown"||e.code==="KeyS"){e.preventDefault();duck(true);}});
+    document.addEventListener("keyup",function(e){if(e.code==="ArrowDown"||e.code==="KeyS")duck(false);});
+    var touchY0=0;
+    canvas.addEventListener("touchstart",function(e){e.preventDefault();touchY0=e.touches[0].clientY;},{passive:false});
+    canvas.addEventListener("touchend",function(e){e.preventDefault();var dy=e.changedTouches[0].clientY-touchY0;if(dy>40){duck(true);setTimeout(function(){duck(false);},400);}else jump();},{passive:false});
+    window.addEventListener("resize",resize);
+    function spawnObstacle(){var types=["cs","cm","cl","pt"],t=types[Math.floor(Math.random()*types.length)];if(t==="pt"){var ys=[GY-Math.round(CH*0.33),GY-Math.round(CH*0.17),GY-Math.round(CH*0.5)];obstacles.push({t:"pt",x:CW+20,y:ys[Math.floor(Math.random()*ys.length)],flap:0});}else{var dim={cs:[18,42],cm:[26,52],cl:[34,60]},d=dim[t];obstacles.push({t:t,x:CW+20,y:GY,w:d[0],h:d[1]});}}
+    function spawnCloud(){clouds.push({x:CW+50,y:12+Math.random()*35,w:55+Math.random()*45,h:17});}
+    function drawDino(){var sc=CH/180;ctx.save();ctx.scale(sc,sc);var sx=dino.x/sc,dk=dino.ducking,sy=(dk?GY+18:dino.y)/sc,bh=dk?34:52,bw=dk?56:44;ctx.fillStyle=C.dino;if(dk){ctx.beginPath();ctx.roundRect(sx-2,sy-bh,bw,bh,6);ctx.fill();ctx.fillStyle=C.eye;ctx.beginPath();ctx.arc(sx+bw-8,sy-bh+10,5,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.dark;ctx.beginPath();ctx.arc(sx+bw-7,sy-bh+11,2.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.dino;var lf=Math.floor(dino.leg/5)%2;ctx.fillRect(sx+8,sy-14+(lf?4:0),10,14+(lf?0:4));ctx.fillRect(sx+26,sy-14+(lf?0:4),10,14+(lf?4:0));ctx.restore();return;}ctx.beginPath();ctx.roundRect(sx,sy-bh+16,bw,bh-16,6);ctx.fill();ctx.beginPath();ctx.roundRect(sx+14,sy-bh,bw-4,26,6);ctx.fill();ctx.fillStyle=C.eye;ctx.beginPath();ctx.arc(sx+bw+2,sy-bh+9,5,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.dark;ctx.beginPath();ctx.arc(sx+bw+3,sy-bh+10,2.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.dino;ctx.beginPath();ctx.moveTo(sx,sy-bh+22);ctx.lineTo(sx-16,sy-bh+36);ctx.lineTo(sx-8,sy-bh+38);ctx.lineTo(sx+2,sy-bh+28);ctx.fill();if(!dino.jumping){var lf2=Math.floor(dino.leg/5)%2;ctx.fillRect(sx+8,sy-20+(lf2?6:0),10,20+(lf2?0:6));ctx.fillRect(sx+24,sy-20+(lf2?0:6),10,20+(lf2?6:0));}else{ctx.fillRect(sx+8,sy-16,10,16);ctx.fillRect(sx+24,sy-10,10,10);}ctx.fillRect(sx+32,sy-bh+28,10,6);ctx.restore();}
+    function drawCactus(o){ctx.fillStyle=C.obstacle;var x=o.x-o.w/2,y=o.y,h=o.h,w=o.w;ctx.beginPath();ctx.roundRect(x+w/2-5,y-h,10,h,3);ctx.fill();ctx.beginPath();ctx.roundRect(x+w/2-8,y-h,16,10,3);ctx.fill();if(w>22){ctx.beginPath();ctx.roundRect(x,y-h*0.6,w/2-2,7,3);ctx.fill();ctx.beginPath();ctx.roundRect(x,y-h*0.85,7,h*0.3,3);ctx.fill();}if(w>30){ctx.beginPath();ctx.roundRect(x+w/2+3,y-h*0.5,w/2-3,7,3);ctx.fill();ctx.beginPath();ctx.roundRect(x+w-9,y-h*0.76,7,h*0.28,3);ctx.fill();}}
+    function drawPtero(o){ctx.fillStyle=C.obstacle;var x=o.x,y=o.y,f=Math.floor(o.flap/8)%2;ctx.beginPath();ctx.ellipse(x,y,20,9,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(x+24,y-4,11,7,-0.3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(x+34,y-4);ctx.lineTo(x+46,y-1);ctx.lineTo(x+34,y+2);ctx.fill();ctx.fillStyle=isDark?"#333":"#fff";ctx.beginPath();ctx.arc(x+29,y-5,3,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.obstacle;if(f===0){ctx.beginPath();ctx.moveTo(x-4,y-4);ctx.lineTo(x-28,y-26);ctx.lineTo(x+8,y-7);ctx.fill();ctx.beginPath();ctx.moveTo(x-4,y+4);ctx.lineTo(x-26,y+18);ctx.lineTo(x+8,y+7);ctx.fill();}else{ctx.beginPath();ctx.moveTo(x-4,y-4);ctx.lineTo(x-28,y+3);ctx.lineTo(x+8,y-3);ctx.fill();ctx.beginPath();ctx.moveTo(x-4,y+4);ctx.lineTo(x-26,y+11);ctx.lineTo(x+8,y+5);ctx.fill();}}
+    function drawCloud(c){ctx.fillStyle=C.cloud;ctx.beginPath();ctx.ellipse(c.x,c.y+c.h/2,c.w*0.38,c.h*0.55,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(c.x+c.w*0.22,c.y+c.h*0.3,c.w*0.3,c.h*0.65,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(c.x+c.w*0.5,c.y+c.h*0.15,c.w*0.32,c.h*0.75,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(c.x+c.w*0.72,c.y+c.h*0.3,c.w*0.3,c.h*0.6,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(c.x+c.w,c.y+c.h/2,c.w*0.25,c.h*0.5,0,0,Math.PI*2);ctx.fill();ctx.fillRect(c.x-c.w*0.38,c.y+c.h*0.5,c.w*1.38,c.h*0.5);}
+    function drawGround(){ctx.fillStyle=C.ground;ctx.fillRect(0,GY,CW,2);for(var i=0;i<14;i++){var x=((i*80-gOff)%(CW+80)+(CW+80))%(CW+80)-40;ctx.fillRect(x,GY+5,18+Math.sin(i*1.7)*8,2);ctx.fillRect(x+28,GY+11,7,1);}}
+    function collides(o){var sc=CH/180,dh=(dino.ducking?34:52)*sc,dw=(dino.ducking?56:44)*sc,by=dino.ducking?GY+18:dino.y,dt=by-dh+10,db=by-8,dl=dino.x+8,dr=dino.x+dw-8,ox,ox2,ot,ob;if(o.t==="pt"){ox=o.x-20+6;ox2=o.x+20-6;ot=o.y-11;ob=o.y+12;}else{ox=o.x-o.w/2+3;ox2=o.x+o.w/2-3;ot=o.y-o.h+5;ob=o.y;}return dr>ox&&dl<ox2&&db>ot&&dt<ob;}
+    function pad(n){return String(Math.floor(n)).padStart(5,"0");}
+    function loop(){ctx.clearRect(0,0,CW,CH);drawGround();clouds.forEach(function(c){drawCloud(c);});
+    if(state==="playing"){frame++;score+=0.1;speed=5+score*0.003;gOff=(gOff+speed)%(CW+80);clouds.forEach(function(c){c.x-=1.5;});clouds=clouds.filter(function(c){return c.x>-150;});if(frame%90===0)spawnCloud();var si=Math.max(60,120-Math.floor(score/50)*5);if(frame%si===0)spawnObstacle();obstacles.forEach(function(o){o.x-=speed;if(o.t==="pt")o.flap++;});obstacles=obstacles.filter(function(o){return o.x>-100;});if(dino.jumping){dino.vy+=0.7;dino.y+=dino.vy;if(dino.y>=GY){dino.y=GY;dino.jumping=false;dino.vy=0;}}if(!dino.jumping)dino.leg++;for(var i=0;i<obstacles.length;i++){if(collides(obstacles[i])){state="dead";if(score>hiScore){hiScore=score;try{localStorage.setItem("dinoHi",Math.floor(hiScore));}catch(e){}document.getElementById("hi").textContent=pad(hiScore);}break;}}document.getElementById("sc").textContent=pad(score);}else if(state==="dead"){clouds.forEach(function(c){c.x-=1.5;});clouds=clouds.filter(function(c){return c.x>-150;});}
+    obstacles.forEach(function(o){o.t==="pt"?drawPtero(o):drawCactus(o);});drawDino();
+    ctx.textAlign="center";var fs=Math.round(CH*0.09);
+    if(state==="idle"){ctx.fillStyle=C.text;ctx.font=fs+'px "Courier New"';ctx.fillText("הקש SPACE / לחץ להתחיל",CW/2,CH/2+fs/3);}
+    if(state==="dead"){ctx.fillStyle=C.text;ctx.font='bold '+fs+'px "Courier New"';ctx.fillText("GAME OVER",CW/2,CH/2-fs*0.3);var isNew=score>=hiScore-0.5&&score>1;if(isNew){ctx.fillStyle="#c0392b";ctx.font='bold '+(fs-2)+'px "Courier New"';ctx.fillText("!שיא חדש",CW/2,CH/2+fs*0.5);ctx.fillStyle=C.text;ctx.font=(fs-2)+'px "Courier New"';ctx.fillText("לחץ להמשיך",CW/2,CH/2+fs*1.1);}else{ctx.font=(fs-2)+'px "Courier New"';ctx.fillText("לחץ להמשיך",CW/2,CH/2+fs*0.7);}}
+    ctx.textAlign="left";requestAnimationFrame(loop);}
+    init();
+  </script>
+</body>
+</html>
